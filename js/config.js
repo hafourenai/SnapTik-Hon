@@ -1,50 +1,27 @@
 const APIConfig = (() => {
     const getAPIConfigs = () => {
-        // 🔥 GUNAKAN APIs YANG SUPPORT HD
         const freeApis = [
             {
-                name: 'TikWM API - HD',
+                name: 'TikWM Direct',
                 url: 'https://www.tikwm.com/api/',
                 method: 'GET',
-                noKey: true,
-                quality: 'hd'
+                noKey: true
             },
             {
-                name: 'TikDown API - HD', 
+                name: 'TikDown Direct', 
                 url: 'https://api.tikdown.org/api',
                 method: 'GET',
-                noKey: true,
-                quality: 'hd'
+                noKey: true
             },
             {
-                name: 'TikMate API - HD',
+                name: 'TikMate Direct',
                 url: 'https://www.tikmate.cc/api/',
-                method: 'GET',
-                noKey: true, 
-                quality: 'hd'
-            },
-            {
-                name: 'SnapTik API - HD',
-                url: 'https://snaptik.app/api/',
-                method: 'GET',
-                noKey: true,
-                quality: 'hd'
+                method: 'GET', 
+                noKey: true
             }
         ];
-
         return freeApis;
     };
 
-    const validateConfig = () => {
-        return {
-            valid: true,
-            message: '✅ Using HD TikTok APIs',
-            hasBackup: true
-        };
-    };
-
-    return {
-        getAPIConfigs: getAPIConfigs,
-        validateConfig: validateConfig
-    };
+    return { getAPIConfigs };
 })();
