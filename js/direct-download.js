@@ -1,63 +1,65 @@
 const DirectDownload = (() => {
-    const methods = [
-        {
-            name: 'SSSTik.io',
-            url: 'https://ssstik.io',
-            icon: '📥',
-            description: 'Download tanpa watermark',
-            steps: [
-                'Buka website SSSTik',
-                'Paste URL TikTok',
-                'Klik Download',
-                'Simpan video'
-            ]
-        },
-        {
-            name: 'SnapTik.app',
-            url: 'https://snaptik.app',
-            icon: '🎬', 
-            description: 'Cepat dan mudah',
-            steps: [
-                'Kunjungi SnapTik',
-                'Tempel link video',
-                'Download HD quality',
-                'Tidak perlu install'
-            ]
-        },
-        {
-            name: 'MusicalDown',
-            url: 'https://musicaldown.com',
-            icon: '🎵',
-            description: 'Support musik dan video',
-            steps: [
-                'Buka MusicalDown',
-                'Copy paste URL',
-                'Download MP4/MP3',
-                'Simpan di device'
-            ]
-        },
-        {
-            name: 'TikMate',
-            url: 'https://tikmate.online',
-            icon: '⚡',
-            description: 'Download super cepat',
-            steps: [
-                'Akses TikMate',
-                'Input link TikTok',
-                'Pilih quality',
-                'Download langsung'
-            ]
-        }
-    ];
+  const methods = [
+    {
+      name: "SSSTik.io",
+      url: "https://ssstik.io",
+      icon: "📥",
+      description: "Download tanpa watermark",
+      steps: [
+        "Buka website SSSTik",
+        "Paste URL TikTok",
+        "Klik Download",
+        "Simpan video",
+      ],
+    },
+    {
+      name: "SnapTik.app",
+      url: "https://snaptik.app",
+      icon: " ",
+      description: "Cepat dan mudah",
+      steps: [
+        "Kunjungi SnapTik",
+        "Tempel link video",
+        "Download HD quality",
+        "Tidak perlu install",
+      ],
+    },
+    {
+      name: "MusicalDown",
+      url: "https://musicaldown.com",
+      icon: "🎵",
+      description: "Support musik dan video",
+      steps: [
+        "Buka MusicalDown",
+        "Copy paste URL",
+        "Download MP4/MP3",
+        "Simpan di device",
+      ],
+    },
+    {
+      name: "TikMate",
+      url: "https://tikmate.online",
+      icon: "⚡",
+      description: "Download super cepat",
+      steps: [
+        "Akses TikMate",
+        "Input link TikTok",
+        "Pilih quality",
+        "Download langsung",
+      ],
+    },
+  ];
 
-    const showDirectOptions = () => {
-        const html = `
+  const showDirectOptions = () => {
+    const html = `
             <div style="text-align: center;">
-                <h3 style="color: #00ff88; margin-bottom: 15px;">🎯 Pilih Downloader</h3>
+                <h3 style="color: #00ff88; margin-bottom: 15px;">  Pilih Downloader</h3>
                 <p style="color: #a0a0a0; margin-bottom: 20px;">Klik salah satu opsi di bawah untuk download langsung:</p>
                 
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 20px;">
-                    ${methods.map(method => `
+                    ${methods
+                      .map(
+                        (method) => `
                         <div style="
                             border: 2px solid #ff9500; 
                             padding: 15px; 
@@ -70,10 +72,12 @@ const DirectDownload = (() => {
                             <div style="font-weight: bold; color: #ff9500; margin-bottom: 5px;">${method.name}</div>
                             <div style="font-size: 12px; color: #a0a0a0; margin-bottom: 10px;">${method.description}</div>
                             <div style="font-size: 10px; color: #666;">
-                                ${method.steps.map(step => `• ${step}`).join('<br>')}
+                                ${method.steps.map((step) => `• ${step}`).join("<br>")}
                             </div>
                         </div>
-                    `).join('')}
+                    `,
+                      )
+                      .join("")}
                 </div>
                 
                 <div style="margin-top: 20px; padding: 15px; background: rgba(0,255,136,0.1); border-radius: 8px;">
@@ -86,8 +90,8 @@ const DirectDownload = (() => {
                 </div>
             </div>
         `;
-        return html;
-    };
+    return html;
+  };
 
-    return { showDirectOptions };
+  return { showDirectOptions };
 })();
