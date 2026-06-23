@@ -242,9 +242,9 @@ const UIManager = (() => {
 
 const APIService = (() => {
   const RAPID_API_CONFIG = {
-    host: process.env.RAPID_API_HOST || "tiktok-downloader-download-tiktok-videos-without-watermark.p.rapidapi.com",
-    key: process.env.RAPID_API_KEY || "YOUR_API_KEY_HERE",
-    endpoint: process.env.RAPID_API_ENDPOINT || "https://tiktok-downloader-download-tiktok-videos-without-watermark.p.rapidapi.com/rich_response/index",
+    host: ENV_CONFIG.RAPID_API.HOST,
+    key: ENV_CONFIG.RAPID_API.KEY,
+    endpoint: ENV_CONFIG.RAPID_API.ENDPOINT,
   };
 
   const fetchVideo = async (videoUrl) => {
