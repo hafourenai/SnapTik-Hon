@@ -241,63 +241,44 @@ const UIManager = (() => {
 })();
 
 const APIService = (() => {
-  const RAPID_API_CONFIG = {
-    host: ENV_CONFIG.RAPID_API.HOST,
-    key: ENV_CONFIG.RAPID_API.KEY,
-    endpoint: ENV_CONFIG.RAPID_API.ENDPOINT,
+  const parseResponse = (data) => {
+    if (data && data.video) {
+      return {
+        video_url: data.video,
+        title: data.title || "TikTok Video",
+        author: data.author || "Unknown",
+        duration: data.duration || "0",
+      };
+    } else if (data && data.download_url) {
+      return {
+        video_url: data.download_url,
+        title: data.title || "TikTok Video",
+        author: data.author || "Unknown",
+      };
+    }
+    return null;
   };
 
   const fetchVideo = async (videoUrl) => {
-    console.log("  Using RapidAPI...");
+    console.log("  Fetching video...");
 
     try {
-      const response = await SecurityManager.createTimeoutPromise(
-        axios({
-          method: "GET",
-          url: `${RAPID_API_CONFIG.endpoint}?url=${encodeURIComponent(videoUrl)}`,
-          headers: {
-            "x-rapidapi-host": RAPID_API_CONFIG.host,
-            "x-rapidapi-key": RAPID_API_CONFIG.key,
-          },
-          timeout: 15000,
-        }),
-        20000,
-      );
+      const response = await fetch(`/api/rapidapi?url=${encodeURIComponent(videoUrl)}`);
+      const data = await response.json();
 
-      console.log("  RapidAPI Response:", response.data);
-
-      if (response.data && response.data.video) {
-        return {
-          video_url: response.data.video,
-          title: response.data.title || "TikTok Video",
-          author: response.data.author || "Unknown",
-          duration: response.data.duration || "0",
-        };
-      } else if (response.data && response.data.download_url) {
-        return {
-          video_url: response.data.download_url,
-          title: response.data.title || "TikTok Video",
-          author: response.data.author || "Unknown",
-        };
-      } else {
-        throw new Error("Format response tidak dikenali");
+      if (!response.ok) {
+        throw new Error(data.error || `API error: ${response.status}`);
       }
+
+      const result = parseResponse(data);
+      if (result) return result;
+
+      throw new Error("Format response tidak dikenali");
     } catch (error) {
-      console.error("  RapidAPI Error:", error);
-
-      if (error.response) {
-        if (error.response.status === 429) {
-          throw new Error("Quota API habis, coba lagi nanti");
-        } else if (error.response.status === 401) {
-          throw new Error("API key tidak valid");
-        } else {
-          throw new Error(`API error: ${error.response.status}`);
-        }
-      } else if (error.request) {
-        throw new Error("Tidak bisa terhubung ke API");
-      } else {
-        throw new Error(error.message);
+      if (error.message === "Failed to fetch") {
+        throw new Error("Tidak bisa terhubung ke server");
       }
+      throw error;
     }
   };
 
