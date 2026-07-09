@@ -71,6 +71,30 @@ const URLValidator = (() => {
   return { validate };
 })();
 
+const Toast = (() => {
+  let activeToast = null;
+
+  const show = (message, type = "info", duration = 3000) => {
+    if (activeToast) {
+      activeToast.remove();
+      activeToast = null;
+    }
+
+    const toast = document.createElement("div");
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    activeToast = toast;
+
+    setTimeout(() => {
+      toast.remove();
+      if (activeToast === toast) activeToast = null;
+    }, duration);
+  };
+
+  return { show };
+})();
+
 const SecurityManager = (() => {
   const rateLimiter = {
     requests: [],
@@ -80,7 +104,7 @@ const SecurityManager = (() => {
     canMakeRequest() {
       const now = Date.now();
       this.requests = this.requests.filter(
-        (time) => now - time < this.timeWindow,
+        (time) => now - time < this.timeWindow
       );
 
       if (this.requests.length >= this.maxRequests) {
@@ -177,7 +201,7 @@ const SecurityManager = (() => {
     return Promise.race([
       promise,
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Request timeout")), timeout),
+        setTimeout(() => reject(new Error("Request timeout")), timeout)
       ),
     ]);
   };
@@ -202,24 +226,25 @@ const UIManager = (() => {
   const showLoading = () => {
     document.getElementById("loading").classList.add("active");
     document.getElementById("statusMessage").style.display = "none";
+    document.getElementById("downloadResult").style.display = "none";
   };
 
   const hideLoading = () => {
     document.getElementById("loading").classList.remove("active");
   };
 
-  const showSuccess = (videoInfo) => {
-    const statusMsg = document.getElementById("statusMessage");
-    statusMsg.className = "status-message success";
-    statusMsg.textContent = `✓ ${videoInfo.title || "Download berhasil!"}`;
-    statusMsg.style.display = "block";
-  };
-
   const showError = (message) => {
-    const statusMsg = document.getElementById("statusMessage");
-    statusMsg.className = "status-message error";
-    statusMsg.textContent = `✗ ${message}`;
-    statusMsg.style.display = "block";
+    const resultDiv = document.getElementById("downloadResult");
+    resultDiv.style.display = "block";
+    resultDiv.className = "download-result";
+    resultDiv.innerHTML = `
+      <div class="status-message error" style="display:block;">
+        <div style="text-align:center">
+          <div style="color:#ff0266;font-size:18px;margin-bottom:10px;">⚠️ DOWNLOAD GAGAL</div>
+          <div style="color:#a0a0a0">${message}</div>
+        </div>
+      </div>
+    `;
   };
 
   const updateCounter = (count) => {
@@ -237,7 +262,7 @@ const UIManager = (() => {
     }, 50);
   };
 
-  return { showLoading, hideLoading, showSuccess, showError, updateCounter };
+  return { showLoading, hideLoading, showError, updateCounter };
 })();
 
 const APIService = (() => {
@@ -255,15 +280,21 @@ const APIService = (() => {
         title: data.title || "TikTok Video",
         author: data.author || "Unknown",
       };
+    } else if (data && data.data && data.data.play) {
+      return {
+        video_url: data.data.play,
+        title: data.data.title || "TikTok Video",
+        author: data.data.author || "Unknown",
+        duration: data.data.duration || "0",
+      };
     }
     return null;
   };
 
-  const fetchVideo = async (videoUrl) => {
-    console.log("  Fetching video...");
-
+  const fetchVideo = async (videoUrl, quality = "hd") => {
     try {
-      const response = await fetch(`/api/rapidapi?url=${encodeURIComponent(videoUrl)}`);
+      const params = new URLSearchParams({ url: videoUrl, quality });
+      const response = await fetch(`/api/rapidapi?${params}`);
       const data = await response.json();
 
       if (!response.ok) {
@@ -303,236 +334,211 @@ const DownloadManager = (() => {
 
       const cached = SecurityManager.getCachedData(cleanUrl);
       if (cached) {
-        console.log("  Using cached data");
-        await handleDownloadResult(cached);
+        await showResult(cached);
         return;
       }
 
-      const videoInfo = await APIService.fetchVideo(cleanUrl);
+      const videoInfo = await APIService.fetchVideo(cleanUrl, quality);
 
       SecurityManager.setCachedData(cleanUrl, videoInfo);
 
-      await handleDownloadResult(videoInfo);
+      await showResult(videoInfo);
     } catch (error) {
       console.error("Download error:", error);
-      await handleDownloadError(error, videoUrl);
+      showErrorResult(error.message, videoUrl);
     } finally {
       isProcessing = false;
       UIManager.hideLoading();
     }
   };
 
-  const handleDownloadResult = async (videoInfo) => {
-    showVideoInfo(videoInfo);
+  const showResult = async (videoInfo) => {
+    downloadCount++;
+    UIManager.updateCounter(downloadCount);
 
-    setTimeout(() => {
-      createDownload(videoInfo);
-      downloadCount++;
-      UIManager.updateCounter(downloadCount);
-    }, 2000);
+    window.currentVideoInfo = videoInfo;
+
+    const resultDiv = document.getElementById("downloadResult");
+    resultDiv.style.display = "block";
+    resultDiv.className = "download-result";
+    resultDiv.innerHTML = `
+      <div class="status-message success" style="display:block;">
+        <div style="text-align:center">
+          <div style="font-size:20px;color:#00ff88;margin-bottom:12px;">✅ VIDEO DITEMUKAN!</div>
+
+          <div class="video-info-card">
+            <div class="info-row"><strong>Judul:</strong> ${escHtml(videoInfo.title || "TikTok Video")}</div>
+            <div class="info-row"><strong>Creator:</strong> ${escHtml(videoInfo.author || "Unknown")}</div>
+            <div class="info-row"><strong>Durasi:</strong> ${escHtml(videoInfo.duration || "Unknown")}</div>
+            <div class="info-row"><strong>Kualitas:</strong> No Watermark</div>
+          </div>
+
+          <div class="download-actions">
+            <button class="btn-primary-dl" onclick="DownloadManager.triggerDownload()">
+              ⬇️ DOWNLOAD VIDEO
+            </button>
+            <button class="btn-secondary-dl" onclick="DownloadManager.previewVideo()">
+              👁️ PREVIEW
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    resultDiv.scrollIntoView({ behavior: "smooth", block: "nearest" });
   };
 
-  const createDownload = (videoInfo) => {
-    const link = document.createElement("a");
-    link.href = videoInfo.video_url;
-    link.download = `tiktok_${Date.now()}.mp4`;
-    link.target = "_blank";
+  const triggerDownload = async () => {
+    const info = window.currentVideoInfo;
+    if (!info || !info.video_url) {
+      Toast.show("Tidak ada video untuk didownload", "error");
+      return;
+    }
 
+    Toast.show("Memulai download...", "info");
+
+    try {
+      const response = await fetch(info.video_url, {
+        mode: "cors",
+        headers: { "Accept": "video/mp4,video/*,*/*" }
+      });
+
+      if (!response.ok) throw new Error("HTTP " + response.status);
+
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `tiktok_${Date.now()}.mp4`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+
+      Toast.show("✅ Download berhasil!", "success");
+    } catch (e) {
+      console.warn("Blob download failed, trying fallback:", e.message);
+      fallbackDownload(info.video_url);
+    }
+  };
+
+  const fallbackDownload = (url) => {
+    const link = document.createElement("a");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 
-    UIManager.showSuccess({
-      title: `  Download Berhasil! - ${videoInfo.title || "TikTok Video"}`,
-    });
+    Toast.show("Jika download tidak dimulai, tap ⋮ lalu pilih Download", "info", 5000);
   };
 
-  const showVideoInfo = (videoInfo) => {
-    const statusMsg = document.getElementById("statusMessage");
-    statusMsg.className = "status-message success";
-    statusMsg.innerHTML = `
-            <div style="text-align: center;">
-                <div style="font-size: 24px; color: #00ff88; margin-bottom: 10px;">  VIDEO DITEMUKAN!</div>
-                
-                <div style="background: rgba(255,149,0,0.1); padding: 15px; border-radius: 8px; margin: 15px 0; text-align: left;">
-                    <div style="color: #ff9500; font-weight: bold; margin-bottom: 8px;">📝 INFO VIDEO:</div>
-                    <div style="color: #a0a0a0; font-size: 12px;">
-                        <strong>Judul:</strong> ${videoInfo.title || "TikTok Video"}<br>
-                        <strong>Creator:</strong> ${videoInfo.author || "Unknown"}<br>
-                        <strong>Durasi:</strong> ${videoInfo.duration || "Unknown"}<br>
-                        <strong>Kualitas:</strong> HD (No Watermark)
-                    </div>
-                </div>
-                
-                <div style="color: #00ff88; font-size: 14px; margin: 10px 0;">
-                    ⬇️ Download akan dimulai otomatis dalam 2 detik...
-                </div>
-                
-                <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
-                    <button onclick="forceDownload()" 
-                            style="background: #00ff88; color: #0a0a12; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">
-                          DOWNLOAD SEKARANG
-                    </button>
-                    <button onclick="previewVideo()" 
-                            style="background: #7e57c2; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">
-                        👁️ PREVIEW VIDEO
-                    </button>
-                </div>
-            </div>
-        `;
-    statusMsg.style.display = "block";
+  const previewVideo = () => {
+    const info = window.currentVideoInfo;
+    if (!info || !info.video_url) {
+      Toast.show("Tidak ada video untuk dipreview", "error");
+      return;
+    }
 
-    window.currentVideoInfo = videoInfo;
+    const overlay = document.createElement("div");
+    overlay.className = "preview-overlay";
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+      <div class="preview-modal">
+        <div class="preview-header">
+          <h3>▶ PREVIEW VIDEO</h3>
+          <button class="preview-close" onclick="this.closest('.preview-overlay').remove()">✕</button>
+        </div>
+        <video class="preview-video" controls autoplay>
+          <source src="${escHtml(info.video_url)}" type="video/mp4">
+        </video>
+        <div class="preview-footer">
+          <button onclick="this.closest('.preview-overlay').remove(); DownloadManager.triggerDownload()">
+            ⬇️ DOWNLOAD VIDEO
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
   };
 
-  const handleDownloadError = async (error, videoUrl) => {
-    console.log("Showing error solutions...");
+  const showErrorResult = (message, videoUrl) => {
+    const resultDiv = document.getElementById("downloadResult");
+    resultDiv.style.display = "block";
+    resultDiv.className = "download-result";
+    resultDiv.innerHTML = `
+      <div class="status-message error" style="display:block;">
+        <div style="text-align:center">
+          <div style="color:#ff0266;font-size:18px;margin-bottom:12px;">⚠️ DOWNLOAD GAGAL</div>
+          <div style="color:#a0a0a0;margin-bottom:15px;">${escHtml(message)}</div>
 
-    const statusMsg = document.getElementById("statusMessage");
-    statusMsg.className = "status-message error";
-    statusMsg.innerHTML = `
-            <div style="text-align: center;">
-                <div style="color: #ff0266; font-size: 18px; margin-bottom: 15px;">⚠️ DOWNLOAD GAGAL</div>
-                <div style="color: #a0a0a0; margin-bottom: 20px;">${error.message}</div>
-                
-                <div style="background: rgba(255,149,0,0.1); padding: 15px; border-radius: 8px; margin: 15px 0;">
-                    <div style="color: #ff9500; font-weight: bold; margin-bottom: 10px;">🔄 SOLUSI:</div>
-                    
-                    <button onclick="retryDownload('${videoUrl}')" 
-                            style="background: #ff9500; color: #0a0a12; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 5px; font-weight: bold;">
-                        🔄 COBA LAGI
-                    </button>
-                    
-                    <button onclick="showAlternativeMethod('${videoUrl}')" 
-                            style="background: #7e57c2; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 5px;">
-                        📱 METODE LAIN
-                    </button>
-                </div>
+          <div class="download-actions">
+            <button class="btn-primary-dl" style="background:#ff9500" onclick="DownloadManager.retry('${escHtml(videoUrl)}')">
+              🔄 COBA LAGI
+            </button>
+            <button class="btn-secondary-dl" onclick="DownloadManager.showAlternatives('${escHtml(videoUrl)}')">
+              📱 METODE LAIN
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    resultDiv.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  };
+
+  const retry = (url) => {
+    processDownload(url);
+  };
+
+  const showAlternatives = (url) => {
+    const resultDiv = document.getElementById("downloadResult");
+    resultDiv.style.display = "block";
+    resultDiv.className = "download-result";
+    resultDiv.innerHTML = `
+      <div class="status-message success" style="display:block;">
+        <div style="text-align:center">
+          <div style="color:#00ff88;font-size:18px;margin-bottom:12px;">📱 DOWNLOADER ALTERNATIF</div>
+
+          <div style="background:rgba(255,149,0,0.1);padding:12px;border-radius:8px;margin:12px 0;">
+            <div style="color:#ff9500;font-weight:700;margin-bottom:6px;">URL TikTok:</div>
+            <div style="background:rgba(0,0,0,0.3);padding:8px;border-radius:4px;font-size:12px;word-break:break-all;color:#a0a0a0;">
+              ${escHtml(url)}
             </div>
-        `;
-    statusMsg.style.display = "block";
+          </div>
+
+          <div class="alternative-grid">
+            ${DirectDownload ? DirectDownload.renderCards() : ""}
+          </div>
+
+          <button onclick="DownloadManager.retry('${escHtml(url)}')"
+                  style="width:100%;margin-top:12px;background:#00ff88;color:#0a0a12;border:none;padding:12px;border-radius:6px;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:14px;cursor:pointer;">
+            🔄 COBA RAPIDAPI LAGI
+          </button>
+        </div>
+      </div>
+    `;
   };
 
   const debouncedDownload = SecurityManager.debounce(processDownload, 1000);
 
   return {
     processDownload: debouncedDownload,
+    triggerDownload,
+    previewVideo,
+    retry,
+    showAlternatives,
     isProcessing: () => isProcessing,
   };
 })();
 
-// Force download manual
-window.forceDownload = () => {
-  if (window.currentVideoInfo && window.currentVideoInfo.video_url) {
-    const link = document.createElement("a");
-    link.href = window.currentVideoInfo.video_url;
-    link.download = `tiktok_${Date.now()}.mp4`;
-    link.target = "_blank";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    showTempMessage("  Download dimulai!", "success");
-  }
-};
-
-// Preview video
-window.previewVideo = () => {
-  if (window.currentVideoInfo && window.currentVideoInfo.video_url) {
-    const previewHTML = `
-            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 10000; display: flex; justify-content: center; align-items: center;">
-                <div style="background: #0a0a12; padding: 20px; border-radius: 10px; border: 2px solid #00ff88; max-width: 90%; max-height: 90%;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                        <div style="color: #00ff88; font-weight: bold;">  PREVIEW VIDEO</div>
-                        <button onclick="closePreview()" style="background: #ff0266; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">✕</button>
-                    </div>
-                    <video controls autoplay style="max-width: 100%; max-height: 70vh; border-radius: 5px;">
-                        <source src="${window.currentVideoInfo.video_url}" type="video/mp4">
-                        Browser tidak support video preview.
-                    </video>
-                    <div style="text-align: center; margin-top: 15px;">
-                        <button onclick="forceDownload()" style="background: #00ff88; color: #0a0a12; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">  DOWNLOAD VIDEO</button>
-                    </div>
-                </div>
-            </div>
-        `;
-
-    const previewDiv = document.createElement("div");
-    previewDiv.innerHTML = previewHTML;
-    document.body.appendChild(previewDiv);
-  }
-};
-
-window.closePreview = () => {
-  const preview = document.querySelector(
-    'div[style*="position: fixed; top: 0; left: 0"]',
-  );
-  if (preview) {
-    preview.remove();
-  }
-};
-
-window.retryDownload = (videoUrl) => {
-  DownloadManager.processDownload(videoUrl);
-};
-
-window.showAlternativeMethod = (videoUrl) => {
-  const statusMsg = document.getElementById("statusMessage");
-  statusMsg.className = "status-message success";
-  statusMsg.innerHTML = `
-        <div style="text-align: center;">
-            <div style="color: #00ff88; font-size: 20px; margin-bottom: 15px;">📱 METODE ALTERNATIF</div>
-            
-            <div style="background: rgba(255,149,0,0.1); padding: 15px; border-radius: 8px; margin: 15px 0;">
-                <div style="color: #ff9500; font-weight: bold; margin-bottom: 10px;">URL TikTok Anda:</div>
-                <div style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px; font-size: 12px; word-break: break-all; color: #a0a0a0;">
-                    ${videoUrl}
-                </div>
-            </div>
-
-            <button onclick="copyTikTokUrl('${videoUrl}')" 
-                    style="background: #ff9500; color: #0a0a12; border: none; padding: 12px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 14px; width: 100%; margin: 5px 0;">
-                📋 SALIN URL - UNTUK SCREEN RECORD
-            </button>
-            
-            <button onclick="retryDownload('${videoUrl}')" 
-                    style="background: #00ff88; color: #0a0a12; border: none; padding: 12px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 14px; width: 100%; margin: 5px 0;">
-                🔄 COBA RAPIDAPI LAGI
-            </button>
-        </div>
-    `;
-};
-
-window.copyTikTokUrl = async (url) => {
-  try {
-    await navigator.clipboard.writeText(url);
-    showTempMessage("  URL berhasil disalin!", "success");
-  } catch (error) {
-    showTempMessage("  Gagal menyalin URL", "error");
-  }
-};
-
-window.showTempMessage = (message, type = "info") => {
-  const tempMsg = document.createElement("div");
-  tempMsg.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: ${type === "success" ? "#00ff88" : type === "error" ? "#ff0266" : "#ff9500"};
-        color: ${type === "success" ? "#0a0a12" : "white"};
-        padding: 15px 20px;
-        border-radius: 5px;
-        z-index: 10000;
-        font-weight: bold;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    `;
-  tempMsg.textContent = message;
-  document.body.appendChild(tempMsg);
-
-  setTimeout(() => {
-    document.body.removeChild(tempMsg);
-  }, 3000);
-};
+function escHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
 
 const EventHandlers = (() => {
   let selectedQuality = "hd";
@@ -555,12 +561,16 @@ const EventHandlers = (() => {
         const text = await navigator.clipboard.readText();
         if (URLValidator.validate(text)) {
           document.getElementById("tiktokUrl").value = text;
-          showTempMessage("📋 URL berhasil dipaste!", "success");
+          Toast.show("URL berhasil dipaste!", "success");
         } else {
-          showTempMessage("⚠️ URL TikTok tidak valid", "error");
+          Toast.show("URL TikTok tidak valid", "error");
         }
       } catch (error) {
-        showTempMessage("  Akses clipboard ditolak", "error");
+        if (error.name === "NotAllowedError") {
+          Toast.show("Izinkan akses clipboard di browser", "info", 4000);
+        } else {
+          Toast.show("Gagal membaca clipboard", "error");
+        }
       }
     });
   };
@@ -582,17 +592,17 @@ const EventHandlers = (() => {
     document
       .getElementById("downloadBtn")
       .addEventListener("click", async () => {
-        const url = document.getElementById("tiktokUrl").value;
+        const url = document.getElementById("tiktokUrl").value.trim();
 
         if (!url) {
-          UIManager.showError("  Masukkan URL TikTok terlebih dahulu!");
+          UIManager.showError("Masukkan URL TikTok terlebih dahulu!");
           document.getElementById("tiktokUrl").focus();
           return;
         }
 
         if (!URLValidator.validate(url)) {
           UIManager.showError(
-            "  URL TikTok tidak valid! Contoh: https://vm.tiktok.com/abc123",
+            "URL TikTok tidak valid! Contoh: https://vm.tiktok.com/abc123"
           );
           return;
         }
@@ -600,7 +610,6 @@ const EventHandlers = (() => {
         await DownloadManager.processDownload(url, selectedQuality);
       });
 
-    // Enter key support
     document
       .getElementById("tiktokUrl")
       .addEventListener("keypress", function (e) {
@@ -626,12 +635,11 @@ const App = (() => {
     UIEffects.init();
     EventHandlers.init();
 
-    console.log("  HAFOURENAI TikTok Downloader Ready");
-    console.log("  RapidAPI Integration Activated");
+    console.log("HAFOURENAI TikTok Downloader Ready");
+    console.log("RapidAPI Integration Activated");
 
-    // Show welcome message
     setTimeout(() => {
-      showTempMessage("🎉 HAFOURENAI TikTok Downloader Siap!", "success");
+      Toast.show("HAFOURENAI TikTok Downloader Siap!", "success");
     }, 1000);
 
     addSecurityBadge();
@@ -639,6 +647,7 @@ const App = (() => {
 
   const addSecurityBadge = () => {
     const badge = document.createElement("div");
+    badge.id = "securityBadge";
     badge.style.cssText = `
             position: fixed;
             bottom: 20px;
@@ -653,7 +662,7 @@ const App = (() => {
             cursor: pointer;
             transition: all 0.3s;
         `;
-    badge.innerHTML = "🍯 SECURED";
+    badge.innerHTML = "🔒 SECURED";
     badge.title = "Protected by Honey Security";
 
     badge.onmouseover = () => {
@@ -671,7 +680,6 @@ const App = (() => {
   return { init };
 })();
 
-// Initialize App ketika DOM siap
 document.addEventListener("DOMContentLoaded", function () {
   App.init();
 });

@@ -7,7 +7,7 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  const { url } = req.query;
+  const { url, quality } = req.query;
 
   if (!url) {
     return res.status(400).json({ error: 'URL parameter required' });
@@ -22,7 +22,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const apiUrl = `${endpoint}?url=${encodeURIComponent(url)}`;
+    const apiUrl = `${endpoint}?url=${encodeURIComponent(url)}${quality ? `&quality=${quality}` : ''}`;
     const response = await fetch(apiUrl, {
       method: 'GET',
       headers: {
